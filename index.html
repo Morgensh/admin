@@ -16,7 +16,13 @@
         input[type="text"] { padding: 8px; margin-bottom: 10px; width: 200px; }
         button { padding: 6px 12px; cursor: pointer; }
         .delete-btn, .ban-btn { background-color: #ff4d4d; color: white; border: none; }
+        .unban-btn { background-color: #4caf50; color: white; border: none; }
+        .manage-btn { background-color: #2196f3; color: white; border: none; }
         #dashboard { text-align: center; font-size: 1.2em; }
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        #modal-content { background: white; padding: 20px; border-radius: 8px; width: 300px; }
+        #modal-content input { width: 100%; margin-bottom: 10px; }
+        #modal-content button { width: 100%; }
     </style>
 </head>
 <body>
@@ -68,9 +74,20 @@
         </table>
     </section>
 
+    <div id="modal">
+        <div id="modal-content">
+            <h3>Управление балансом</h3>
+            <p>Введите сумму (положительная - начислить, отрицательная - снять):</p>
+            <input type="number" id="balance-amount" step="0.01">
+            <button onclick="updateBalance()">Применить</button>
+            <button onclick="closeModal()">Отмена</button>
+        </div>
+    </div>
+
     <script>
         const apiBase = 'https://dinod.ru/api'; // Замени на URL твоего сервера
         const adminId = 6034598170; // Твой Telegram ID
+        let currentUserId = null;
 
         function showSection(sectionId) {
             document.querySelectorAll('section').forEach(sec => sec.classList.remove('active'));
@@ -137,6 +154,9 @@
                 tbody.innerHTML = '';
                 data.forEach(user => {
                     const row = document.createElement('tr');
+                    const banButton = user.banned 
+                        ? `<button class="unban-btn" onclick="unbanUser(${user.telegram_id})">Разбанить</button>` 
+                        : `<button class="ban-btn" onclick="banUser(${user.telegram_id})">Забанить</button>`;
                     row.innerHTML = `
                         <td>${user.telegram_id}</td>
                         <td>${user.username}</td>
@@ -144,7 +164,10 @@
                         <td>${user.balance}</td>
                         <td>${user.banned ? 'Да' : 'Нет'}</td>
                         <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        <td><button class="ban-btn" onclick="banUser(${user.telegram_id})" ${user.banned ? 'disabled' : ''}>Забанить</button></td>
+                        <td>
+                            <button class="manage-btn" onclick="openModal(${user.telegram_id})">Управлять балансом</button>
+                            ${banButton}
+                        </td>
                     `;
                     tbody.appendChild(row);
                 });
@@ -153,8 +176,38 @@
             }
         }
 
+        function openModal(userId) {
+            currentUserId = userId;
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('balance-amount').value = '';
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+            currentUserId = null;
+        }
+
+        async function updateBalance() {
+            const amount = parseFloat(document.getElementById('balance-amount').value);
+            if (isNaN(amount)) {
+                alert('Введите корректную сумму');
+                return;
+            }
+            try {
+                await fetchWithAdmin(`${apiBase}/admin/user/${currentUserId}/balance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount })
+                });
+                closeModal();
+                loadUsers();
+            } catch (err) {
+                alert('Ошибка обновления баланса');
+            }
+        }
+
         async function banUser(telegramId) {
-            if (!confirm('Уверен, что хочешь забанить пользователя?')) return;
+            if (!confirm('Уверен, что хочешь забанить пользователя? Он потеряет все данные.')) return;
             try {
                 await fetchWithAdmin(`${apiBase}/admin/ban/${telegramId}`, { method: 'POST' });
                 loadUsers();
@@ -163,9 +216,18 @@
             }
         }
 
+        async function unbanUser(telegramId) {
+            if (!confirm('Уверен, что хочешь разбанить пользователя? Он сможет начать заново.')) return;
+            try {
+                await fetchWithAdmin(`${apiBase}/admin/unban/${telegramId}`, { method: 'POST' });
+                loadUsers();
+            } catch (err) {
+                alert('Ошибка разбана');
+            }
+        }
+
         // Инициализация
         showSection('dashboard');
     </script>
 </body>
 </html>
-
