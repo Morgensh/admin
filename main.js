@@ -9,4 +9,17 @@ function newGame(){
   msg(`🌾 Стройте фермы — без еды население начнёт убывать! 🏙 Город: ${CITY_GOLD}🪙+${CITY_WOOD}🌲+${CITY_STONE}🪨`);
 }
 
-resize();newGame();draw();
+function boot(){
+  // на некоторых мобильных браузерах при первой отрисовке адресная строка ещё "гуляет",
+  // и window.innerHeight/innerWidth могут на мгновение оказаться некорректными (0 или устаревшими) —
+  // ждём следующего кадра, чтобы размеры точно устоялись перед генерацией карты
+  requestAnimationFrame(()=>{
+    try{
+      if(!window.innerWidth||!window.innerHeight)throw new Error(`Некорректный размер окна: ${window.innerWidth}x${window.innerHeight}`);
+      resize();newGame();draw();
+    }catch(err){
+      showErr((err&&err.stack)||String(err));
+    }
+  });
+}
+boot();
