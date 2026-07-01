@@ -1,71 +1,70 @@
 'use strict';
 
-function handleClick(cx,cy){
-  if(anyPanelOpen())closeAllPanels();
-  const rect=canvas.getBoundingClientRect();
-  const wx=(cx-rect.left-vx)/vs,wy=(cy-rect.top-vy)/vs;
-  const ix=Math.round(wx)|0,iy=Math.round(wy)|0;
-  if(buildMode){
-    buildMode=false;updBtn();
-    if(ix>=0&&ix<MW&&iy>=0&&iy<MH&&cmap[iy*MW+ix]===PLAYER){
-      const pc=countries[PLAYER];
-      if(pc.gold<CITY_GOLD||pc.resources.wood.stock<CITY_WOOD||pc.resources.stone.stock<CITY_STONE){
-        msg(`Нужно ${CITY_GOLD}🪙 + ${CITY_WOOD}🌲 + ${CITY_STONE}🪨`);return;
-      }
-      if(cities.some(c=>Math.hypot(c.x-wx,c.y-wy)<CITY_MIN_D)){msg('Слишком близко');return;}
-      pc.gold-=CITY_GOLD;pc.resources.wood.stock-=CITY_WOOD;pc.resources.stone.stock-=CITY_STONE;
-      cities.push({id:nextId++,ownerId:PLAYER,x:wx,y:wy,pop:10,investBudget:0,investTicks:0,isCapital:false});
-      updateHUD();msg('🏙 Город основан!');
-    } else msg('Только на своей территории');
-    return;
+function cityLabel(p){return p<100?'Деревня':p<400?'Посёлок':p<800?'Город':p<1500?'Большой город':'Мегаполис';}
+function gearRadius(pop){return GEAR_MIN_R+(GEAR_MAX_R-GEAR_MIN_R)*Math.sqrt(Math.min(1,pop/POP_MAX));}
+
+// canvas.width/height теперь в физических пикселях (canvas.width=CSS-ширина*dpr), а вся камера (vx/vy/vs)
+// живёт в CSS-пикселях — поэтому здесь всегда делим на dpr, чтобы получить реальный размер вьюпорта
+function clamp(){const cw=canvas.width/dpr,ch=canvas.height/dpr;vx=Math.max(cw*.1-MW*vs,Math.min(cw*.9,vx));vy=Math.max(ch*.1-MH*vs,Math.min(ch*.9,vy));}
+function fitView(){const cw=canvas.width/dpr,ch=canvas.height/dpr;vs=Math.max(cw/MW,ch/MH)*1.05;vx=(cw-MW*vs)/2;vy=(ch-MH*vs)/2;}
+
+function drawGear(x,y,color,R){
+  const teeth=Math.max(5,Math.round(R*.9)),ri=R*.62,rh=R*.26;
+  ctx.shadowColor='rgba(0,0,0,.6)';ctx.shadowBlur=4;ctx.shadowOffsetY=1;
+  ctx.beginPath();
+  for(let i=0;i<teeth*2;i++){const a=(Math.PI*i/teeth)-Math.PI/(teeth*2),rr=i%2===0?R:ri;i===0?ctx.moveTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr):ctx.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr);}
+  ctx.closePath();ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=Math.max(.4,R*.07);ctx.stroke();
+  ctx.beginPath();ctx.arc(x,y,rh,0,Math.PI*2);ctx.fillStyle='rgba(0,0,0,.6)';ctx.fill();
+  ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+}
+function drawDeposit(d){
+  const r=resById(d.res);
+  ctx.save();
+  ctx.globalAlpha=d.mined?1:0.5;
+  if(d.mined){
+    ctx.beginPath();ctx.arc(d.x,d.y,7,0,Math.PI*2);
+    ctx.fillStyle='rgba(0,0,0,.45)';ctx.fill();
+    ctx.strokeStyle=r.color;ctx.lineWidth=1;ctx.stroke();
+  }
+  ctx.font='9px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(r.icon,d.x,d.y);
+  ctx.restore();
+}
+
+function draw(){
+  ctx.fillStyle='#06080f';ctx.fillRect(0,0,canvas.width,canvas.height);
+  if(!offC){requestAnimationFrame(draw);return;}
+  // ctx.scale(dpr,dpr) первым — переводит все дальнейшие CSS-пиксельные координаты (vx/vy/vs)
+  // в физические пиксели canvas. Без этого на retina-экранах картинка растягивается и мылится.
+  ctx.save();ctx.scale(dpr,dpr);ctx.translate(vx,vy);ctx.scale(vs,vs);ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(offC,0,0);
+  for(const co of countries){
+    if(!co.alive||!co.capital)continue;
+    const{x,y}=co.capital;
+    ctx.beginPath();for(let i=0;i<10;i++){const a=Math.PI*i/5-Math.PI/2,r=i%2?2.5:5;i?ctx.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r):ctx.moveTo(x+Math.cos(a)*r,y+Math.sin(a)*r);}
+    ctx.closePath();ctx.fillStyle=co.hex;ctx.fill();ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=.6;ctx.stroke();
+    ctx.font=`${co.id===PLAYER?'bold ':''}7px Courier New`;ctx.textAlign='center';ctx.textBaseline='top';
+    const gw=ctx.measureText(co.name).width+6;ctx.fillStyle='rgba(0,0,0,.72)';ctx.fillRect(x-gw/2,y+7,gw,10);
+    ctx.fillStyle=co.id===PLAYER?'#ffd250':co.hex;ctx.fillText(co.name,x,y+8);
   }
   for(const c of cities){
     const co=countries[c.ownerId];if(!co?.alive)continue;
-    const R=gearRadius(c.pop);
-    if(Math.hypot(cx-rect.left-c.x*vs-vx,cy-rect.top-c.y*vs-vy)<=R*vs+14){openCityPanel(c.id);return;}
+    const R=gearRadius(c.pop),isP=co.id===PLAYER;
+    if(c.investTicks>0&&isP){ctx.beginPath();ctx.arc(c.x,c.y,R+4,0,Math.PI*2);ctx.strokeStyle='rgba(255,210,60,.4)';ctx.lineWidth=2;ctx.stroke();}
+    if(isForSale(c)){
+      const pulse=0.55+0.45*Math.sin(Date.now()/260);
+      ctx.beginPath();ctx.arc(c.x,c.y,R+5,0,Math.PI*2);ctx.strokeStyle=`rgba(255,90,90,${pulse})`;ctx.lineWidth=2.2;ctx.stroke();
+      ctx.font='7px serif';ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillText('💰',c.x,c.y-R-4);
+    }
+    drawGear(c.x,c.y,isP?'#ffd250':co.hex,R);
+    if(R>5){const lbl=Math.floor(c.pop)+'';ctx.font='5.5px Courier New';ctx.textAlign='center';ctx.textBaseline='top';const gw=ctx.measureText(lbl).width+4;ctx.fillStyle='rgba(0,0,0,.65)';ctx.fillRect(c.x-gw/2,c.y+R+1,gw,7);ctx.fillStyle=isP?'#ffd250':co.hex;ctx.fillText(lbl,c.x,c.y+R+2);}
   }
   if(showRes){
     for(const d of deposits){
       const co=countries[d.ownerId];if(!co?.alive)continue;
-      if(Math.hypot(cx-rect.left-d.x*vs-vx,cy-rect.top-d.y*vs-vy)<=9*vs+14){
-        const r=resById(d.res);
-        if(d.ownerId===PLAYER){
-          msg(d.mined?`${r.icon} ${r.name}: шахта уже построена`:`${r.icon} ${r.name}: ваше месторождение, открой «Развитие» чтобы построить шахту`);
-        }else{
-          msg(`${r.icon} ${r.name} — месторождение страны ${co.name}`);
-        }
-        return;
-      }
+      drawDeposit(d);
     }
   }
-  if(ix>=0&&ix<MW&&iy>=0&&iy<MH){
-    const ow=cmap[iy*MW+ix];
-    if(ow>=0){const co=countries[ow];if(co?.alive)msg(`${co.name} — нас. ${Math.floor(totalPop(ow))} чел.`);}
-    else msg('Море');
-  }
+  ctx.restore();
+  requestAnimationFrame(draw);
 }
-
-canvas.addEventListener('mousedown',e=>{drag={on:true,sx:e.clientX,sy:e.clientY,vx0:vx,vy0:vy,moved:0,lx:e.clientX,ly:e.clientY};});
-window.addEventListener('mousemove',e=>{if(!drag.on)return;drag.moved+=Math.hypot(e.clientX-drag.lx,e.clientY-drag.ly);drag.lx=e.clientX;drag.ly=e.clientY;vx=drag.vx0+(e.clientX-drag.sx);vy=drag.vy0+(e.clientY-drag.sy);clamp();});
-window.addEventListener('mouseup',e=>{if(drag.on&&drag.moved<8)handleClick(e.clientX,e.clientY);drag.on=false;});
-canvas.addEventListener('wheel',e=>{e.preventDefault();const r=canvas.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;const wx=(mx-vx)/vs,wy=(my-vy)/vs;vs=Math.max(.4,Math.min(14,vs*(e.deltaY>0?.88:1.13)));vx=mx-wx*vs;vy=my-wy*vs;clamp();},{passive:false});
-canvas.addEventListener('touchstart',e=>{e.preventDefault();for(const t of e.changedTouches)touches[t.identifier]={x:t.clientX,y:t.clientY};const pts=Object.values(touches);if(pts.length===1)drag={on:true,sx:pts[0].x,sy:pts[0].y,vx0:vx,vy0:vy,moved:0,lx:pts[0].x,ly:pts[0].y};},{passive:false});
-canvas.addEventListener('touchmove',e=>{e.preventDefault();for(const t of e.changedTouches)if(touches[t.identifier])touches[t.identifier]={x:t.clientX,y:t.clientY};const pts=Object.values(touches);if(pts.length===1&&drag.on){drag.moved+=Math.hypot(pts[0].x-drag.lx,pts[0].y-drag.ly);drag.lx=pts[0].x;drag.ly=pts[0].y;vx=drag.vx0+(pts[0].x-drag.sx);vy=drag.vy0+(pts[0].y-drag.sy);clamp();}},{passive:false});
-canvas.addEventListener('touchend',e=>{e.preventDefault();const last=Object.values(touches);for(const t of e.changedTouches)delete touches[t.identifier];if(!Object.keys(touches).length&&drag.on&&drag.moved<14)handleClick(last[0].x,last[0].y);if(!Object.keys(touches).length)drag.on=false;},{passive:false});
-// без этого обработчика прерванный ОС жестом тач (уведомление, edge-swipe, мультитач-конфликт) навсегда "зависал" в touches{},
-// счётчик активных пальцев переставал возвращаться к 1, и клики на канвасе переставали работать до перезагрузки страницы
-canvas.addEventListener('touchcancel',e=>{for(const t of e.changedTouches)delete touches[t.identifier];if(!Object.keys(touches).length)drag.on=false;},{passive:false});
-
-function updBtn(){const b=document.getElementById('btn-build');if(buildMode){b.classList.add('active');b.querySelector('.lbl').textContent='Отмена';b.querySelector('span').textContent='✕';}else{b.classList.remove('active');b.children[0].textContent='🏙';b.querySelector('.lbl').textContent='Город';}}
-document.getElementById('btn-build').onclick=function(){
-  const pc=countries[PLAYER];if(!pc?.alive)return;
-  if(!buildMode&&(pc.gold<CITY_GOLD||pc.resources.wood.stock<CITY_WOOD||pc.resources.stone.stock<CITY_STONE)){
-    msg(`Нужно ${CITY_GOLD}🪙 + ${CITY_WOOD}🌲 + ${CITY_STONE}🪨`);return;
-  }
-  buildMode=!buildMode;updBtn();msg(buildMode?'Кликни на свою территорию':'Отменено');
-};
-document.getElementById('btn-new').onclick=()=>newGame();
-
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;if(offC)fitView();}
-window.addEventListener('resize',resize);
-window.addEventListener('orientationchange',()=>setTimeout(resize,200));
