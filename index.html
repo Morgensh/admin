@@ -9,6 +9,24 @@
 <body>
 <canvas id="canvas"></canvas>
 
+<div id="err-banner" style="display:none;position:fixed;inset:0;z-index:9999;background:#0a0508;color:#ff8080;font-family:'Courier New',monospace;font-size:11px;line-height:1.5;padding:20px;overflow:auto;white-space:pre-wrap;"></div>
+
+<script>
+// Ловец ошибок ставим до загрузки остальных скриптов — если что-то упадёт при генерации карты,
+// текст ошибки покажется прямо на экране (в т.ч. на телефоне, где нет доступа к консоли разработчика)
+function showErr(text){
+  const b=document.getElementById('err-banner');
+  b.textContent='⚠ ОШИБКА\n\n'+text+'\n\n(скриншот этого текста поможет починить баг)';
+  b.style.display='block';
+}
+window.addEventListener('error',e=>{
+  showErr((e.message||'unknown error')+'\n'+(e.filename?e.filename+':'+e.lineno+':'+e.colno:''));
+});
+window.addEventListener('unhandledrejection',e=>{
+  showErr('Promise rejection: '+(e.reason&&e.reason.message?e.reason.message:e.reason));
+});
+</script>
+
 <!-- верх-лево: золото + ресурсы -->
 <div class="corner" id="hud-tl">
   <div id="gold-display">🪙 <span id="gold-val">120</span><span id="income-val"></span></div>
