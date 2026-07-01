@@ -1,292 +1,149 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Админка Business Empire Richman</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        nav { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        nav button { padding: 10px 20px; cursor: pointer; }
-        section { display: none; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        section.active { display: block; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        input[type="text"] { padding: 8px; margin-bottom: 10px; width: 200px; }
-        button { padding: 6px 12px; cursor: pointer; }
-        .delete-btn, .ban-btn { background-color: #ff4d4d; color: white; border: none; }
-        .unban-btn { background-color: #4caf50; color: white; border: none; }
-        .manage-btn { background-color: #2196f3; color: white; border: none; }
-        #dashboard { text-align: center; font-size: 1.2em; }
-        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        #modal-content { background: white; padding: 20px; border-radius: 8px; width: 300px; }
-        #modal-content input { width: 100%; margin-bottom: 10px; }
-        #modal-content button { width: 100%; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Island</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <nav>
-        <button onclick="showSection('dashboard')">Дашборд</button>
-        <button onclick="showSection('companies')">Компании</button>
-        <button onclick="showSection('users')">Пользователи</button>
-        <button onclick="showSection('ads')">Объявления</button>
-    </nav>
+<canvas id="canvas"></canvas>
 
-    <section id="dashboard" class="active">
-        <h2>Дашборд</h2>
-        <p>Количество игроков: <span id="players-count">Загрузка...</span></p>
-    </section>
+<div id="rotate-screen"><span class="ic">📱</span><p>Поверните телефон<br>горизонтально</p></div>
 
-    <section id="companies">
-        <h2>Компании</h2>
-        <input type="text" id="company-search" placeholder="Поиск по имени компании" oninput="loadCompanies()">
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Имя</th>
-                    <th>Владелец</th>
-                    <th>Клиенты</th>
-                    <th>Акции</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody id="companies-table"></tbody>
-        </table>
-    </section>
+<!-- верх-лево: золото + ресурсы -->
+<div class="corner" id="hud-tl">
+  <div id="gold-display">🪙 <span id="gold-val">120</span><span id="income-val"></span></div>
+  <div id="res-display"></div>
+</div>
 
-    <section id="users">
-        <h2>Пользователи</h2>
-        <input type="text" id="user-search" placeholder="Поиск по username" oninput="loadUsers()">
-        <table>
-            <thead>
-                <tr>
-                    <th>Telegram ID</th>
-                    <th>Username</th>
-                    <th>Имя</th>
-                    <th>Баланс</th>
-                    <th>Забанен</th>
-                    <th>Дата регистрации</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody id="users-table"></tbody>
-        </table>
-    </section>
+<!-- верх-право: население + новая игра -->
+<div class="corner" id="hud-tr" style="flex-direction:row;">
+  <button class="icon-btn small" id="btn-new" title="Новая игра">↻</button>
+  <button class="icon-btn amber small" id="btn-tax" title="Налоги">📜</button>
+  <button class="icon-btn blue" id="btn-pop" title="Население">👥</button>
+</div>
 
-    <section id="ads">
-        <h2>Объявления</h2>
-        <input type="text" id="ad-search" placeholder="Поиск по каналу" oninput="loadAds()">
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Создатель</th>
-                    <th>Канал</th>
-                    <th>Награда</th>
-                    <th>Бюджет</th>
-                    <th>Остаток</th>
-                    <th>Опубликовано</th>
-                    <th>Активно</th>
-                    <th>Действия</th>
-                </tr>
-            </thead>
-            <tbody id="ads-table"></tbody>
-        </table>
-    </section>
+<!-- низ-лево: построить город -->
+<div class="corner" id="hud-bl">
+  <button class="icon-btn gold wide" id="btn-build"><span>🏙</span><span class="lbl">Город</span></button>
+</div>
 
-    <div id="modal">
-        <div id="modal-content">
-            <h3>Управление балансом</h3>
-            <p>Введите сумму (положительная - начислить, отрицательная - снять):</p>
-            <input type="number" id="balance-amount" step="0.01">
-            <button onclick="updateBalance()">Применить</button>
-            <button onclick="closeModal()">Отмена</button>
-        </div>
+<!-- низ-право: рынок -->
+<div class="corner" id="hud-br">
+  <button class="icon-btn green wide" id="btn-market"><span>📦</span><span class="lbl">Рынок</span></button>
+</div>
+
+<!-- лево-центр: месторождения -->
+<div class="corner" id="hud-ml">
+  <button class="icon-btn green" id="btn-res" title="Месторождения">🗺</button>
+</div>
+
+<!-- право-центр: развитие/шахты -->
+<div class="corner" id="hud-mr">
+  <button class="icon-btn amber" id="btn-dev" title="Развитие">🏗</button>
+</div>
+
+<div id="msg">Загрузка…</div>
+
+<!-- Налоги -->
+<div class="panel" id="tax-panel">
+  <h3 style="color:#ff8866;">📜 Налоговая политика</h3>
+  <div id="tax-stats" style="display:flex;flex-direction:column;gap:6px;"></div>
+  <hr class="sep">
+  <p style="color:#556677;font-size:10px;letter-spacing:1px;text-transform:uppercase;">Ставка налога</p>
+  <div class="invest-row">
+    <input type="range" id="tax-slider" min="0" max="100" step="5" value="20">
+    <span class="invest-val" id="tax-val">20%</span>
+  </div>
+  <p id="tax-hint" style="font-size:10px;color:#556;"></p>
+  <div class="row" style="justify-content:flex-end;"><button class="btn" id="tax-close">Закрыть</button></div>
+</div>
+
+<!-- Население -->
+<div class="panel" id="pop-panel">
+  <h3 style="color:#78aaff;">👥 Население островов</h3>
+  <div id="pop-list"></div>
+  <hr class="sep">
+  <div class="row" style="justify-content:flex-end;"><button class="btn" id="pop-close">Закрыть</button></div>
+</div>
+
+<!-- Город -->
+<div class="panel" id="city-panel">
+  <h3 id="cp-title">🏙 Город</h3>
+  <div id="cp-stats" style="display:flex;flex-direction:column;gap:6px;"></div>
+  <hr class="sep">
+  <p id="invest-label" style="color:#556677;font-size:10px;letter-spacing:1px;text-transform:uppercase;">Инвестировать в население</p>
+  <div class="invest-row" id="invest-row-wrap">
+    <input type="range" id="invest-slider" min="10" max="500" step="10" value="50">
+    <span class="invest-val" id="invest-val">50 🪙</span>
+  </div>
+  <p id="invest-hint" style="font-size:10px;color:#556;"></p>
+  <div id="buyout-block" style="display:none;flex-direction:column;gap:8px;">
+    <p style="font-size:10px;color:#ff8866;letter-spacing:.5px;">⚠ Экономика страны в кризисе — город можно выкупить!</p>
+    <button class="btn" id="buyout-btn" style="border-color:rgba(255,90,90,.5);color:#ff6060;"></button>
+  </div>
+  <div class="row">
+    <button class="btn btn-gold" id="invest-btn">Вложить золото</button>
+    <button class="btn" id="cp-close">Закрыть</button>
+  </div>
+</div>
+
+<!-- Развитие (шахты) -->
+<div class="panel" id="dev-panel">
+  <h3 style="color:#ffb43c;">🏗 Развитие экономики</h3>
+  <div id="dev-summary"></div>
+  <p id="dev-food-balance" style="font-size:10px;background:rgba(255,255,255,.04);border-radius:6px;padding:8px 10px;"></p>
+  <p style="font-size:10px;color:#667788;">Стройте фермы и шахты на найденных месторождениях, чтобы добывать ресурсы. Не хватает чего-то — купите на рынке. Месторождения видны на карте по кнопке 🗺.</p>
+  <div id="dev-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+  <hr class="sep">
+  <div class="row">
+    <button class="btn btn-green" id="dev-to-market">📦 Купить на рынке</button>
+    <button class="btn" id="dev-close" style="margin-left:auto;">Закрыть</button>
+  </div>
+</div>
+
+<!-- Рынок -->
+<div class="panel" id="market-panel">
+  <h3 style="color:#3cc878;">📦 Рынок ресурсов</h3>
+  <div class="market-tabs">
+    <div class="market-tab active" id="tab-buy">Купить</div>
+    <div class="market-tab" id="tab-sell">Выставить лот</div>
+    <div class="market-tab" id="tab-credit">Кредиты</div>
+  </div>
+  <div id="market-buy-view">
+    <div id="market-orders"></div>
+    <p id="market-empty" style="font-size:10px;color:#445566;text-align:center;padding:16px 0;display:none;">Нет активных лотов</p>
+  </div>
+  <div id="market-sell-view" style="display:none;">
+    <div id="sell-form">
+      <div class="sell-row"><label>Ресурс</label><select id="sell-res"></select></div>
+      <div class="sell-row"><label>Количество</label><input type="number" id="sell-qty" min="1" max="999" value="10"></div>
+      <div class="sell-row"><label>Цена за ед.</label><input type="number" id="sell-price" min="1" value="10"></div>
+      <p id="sell-hint" style="font-size:10px;color:#667788;"></p>
     </div>
+  </div>
+  <div id="market-credit-view" style="display:none;">
+    <div id="credit-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;"></div>
+    <p id="credit-empty" style="font-size:10px;color:#445566;text-align:center;padding:16px 0;display:none;">Пока никто не просит кредит</p>
+  </div>
+  <hr class="sep">
+  <div class="row" id="market-btns">
+    <button class="btn btn-green" id="market-action">Выставить</button>
+    <button class="btn" id="market-close">Закрыть</button>
+  </div>
+</div>
 
-    <script>
-        const apiBase = 'https://dinod.ru/api'; // Замени на URL твоего сервера
-        const adminId = 6034598170; // Твой Telegram ID
-        let currentUserId = null;
-
-        function showSection(sectionId) {
-            document.querySelectorAll('section').forEach(sec => sec.classList.remove('active'));
-            document.getElementById(sectionId).classList.add('active');
-            if (sectionId === 'dashboard') loadDashboard();
-            if (sectionId === 'companies') loadCompanies();
-            if (sectionId === 'users') loadUsers();
-            if (sectionId === 'ads') loadAds();
-        }
-
-        async function fetchWithAdmin(url, options = {}) {
-            const fullUrl = `${url}${url.includes('?') ? '&' : '?'}telegram_id=${adminId}`;
-            const response = await fetch(fullUrl, options);
-            if (!response.ok) throw new Error('Network error');
-            return response.json();
-        }
-
-        async function loadDashboard() {
-            try {
-                const data = await fetchWithAdmin(`${apiBase}/admin/players_count`);
-                document.getElementById('players-count').textContent = data.count;
-            } catch (err) {
-                alert('Ошибка загрузки дашборда');
-            }
-        }
-
-        async function loadCompanies() {
-            try {
-                const search = document.getElementById('company-search').value;
-                const data = await fetchWithAdmin(`${apiBase}/admin/companies?search=${encodeURIComponent(search)}`);
-                const tbody = document.getElementById('companies-table');
-                tbody.innerHTML = '';
-                data.forEach(company => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${company.id}</td>
-                        <td>${company.name}</td>
-                        <td>${company.owner_username}</td>
-                        <td>${company.clients_count}</td>
-                        <td>${company.issued_shares}</td>
-                        <td><button class="delete-btn" onclick="deleteCompany(${company.id})">Удалить</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (err) {
-                alert('Ошибка загрузки компаний');
-            }
-        }
-
-        async function deleteCompany(id) {
-            if (!confirm('Уверен, что хочешь удалить компанию?')) return;
-            try {
-                await fetchWithAdmin(`${apiBase}/admin/company/${id}`, { method: 'DELETE' });
-                loadCompanies();
-            } catch (err) {
-                alert('Ошибка удаления');
-            }
-        }
-
-        async function loadUsers() {
-            try {
-                const search = document.getElementById('user-search').value;
-                const data = await fetchWithAdmin(`${apiBase}/admin/users?search=${encodeURIComponent(search)}`);
-                const tbody = document.getElementById('users-table');
-                tbody.innerHTML = '';
-                data.forEach(user => {
-                    const row = document.createElement('tr');
-                    const banButton = user.banned 
-                        ? `<button class="unban-btn" onclick="unbanUser(${user.telegram_id})">Разбанить</button>` 
-                        : `<button class="ban-btn" onclick="banUser(${user.telegram_id})">Забанить</button>`;
-                    row.innerHTML = `
-                        <td>${user.telegram_id}</td>
-                        <td>${user.username}</td>
-                        <td>${user.first_name} ${user.last_name}</td>
-                        <td>${user.balance}</td>
-                        <td>${user.banned ? 'Да' : 'Нет'}</td>
-                        <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        <td>
-                            <button class="manage-btn" onclick="openModal(${user.telegram_id})">Управлять балансом</button>
-                            ${banButton}
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (err) {
-                alert('Ошибка загрузки пользователей');
-            }
-        }
-
-        async function loadAds() {
-            try {
-                const search = document.getElementById('ad-search').value;
-                const data = await fetchWithAdmin(`${apiBase}/admin/ads?search=${encodeURIComponent(search)}`);
-                const tbody = document.getElementById('ads-table');
-                tbody.innerHTML = '';
-                data.forEach(ad => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${ad.id}</td>
-                        <td>${ad.creator_username}</td>
-                        <td>${ad.channel_username}</td>
-                        <td>${ad.reward}</td>
-                        <td>${ad.budget}</td>
-                        <td>${ad.remaining}</td>
-                        <td>${ad.published ? 'Да' : 'Нет'}</td>
-                        <td>${ad.active ? 'Да' : 'Нет'}</td>
-                        <td><button class="delete-btn" onclick="deleteAd(${ad.id})">Удалить</button></td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } catch (err) {
-                alert('Ошибка загрузки объявлений');
-            }
-        }
-
-        async function deleteAd(id) {
-            if (!confirm('Уверен, что хочешь удалить объявление? Остаток бюджета вернется создателю.')) return;
-            try {
-                await fetchWithAdmin(`${apiBase}/admin/ad/${id}`, { method: 'DELETE' });
-                loadAds();
-            } catch (err) {
-                alert('Ошибка удаления');
-            }
-        }
-
-        function openModal(userId) {
-            currentUserId = userId;
-            document.getElementById('modal').style.display = 'flex';
-            document.getElementById('balance-amount').value = '';
-        }
-
-        function closeModal() {
-            document.getElementById('modal').style.display = 'none';
-            currentUserId = null;
-        }
-
-        async function updateBalance() {
-            const amount = parseFloat(document.getElementById('balance-amount').value);
-            if (isNaN(amount)) {
-                alert('Введите корректную сумму');
-                return;
-            }
-            try {
-                await fetchWithAdmin(`${apiBase}/admin/user/${currentUserId}/balance`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount })
-                });
-                closeModal();
-                loadUsers();
-            } catch (err) {
-                alert('Ошибка обновления баланса');
-            }
-        }
-
-        async function banUser(telegramId) {
-            if (!confirm('Уверен, что хочешь забанить пользователя? Он потеряет все данные.')) return;
-            try {
-                await fetchWithAdmin(`${apiBase}/admin/ban/${telegramId}`, { method: 'POST' });
-                loadUsers();
-            } catch (err) {
-                alert('Ошибка бана');
-            }
-        }
-
-        async function unbanUser(telegramId) {
-            if (!confirm('Уверен, что хочешь разбанить пользователя? Он сможет начать заново.')) return;
-            try {
-                await fetchWithAdmin(`${apiBase}/admin/unban/${telegramId}`, { method: 'POST' });
-                loadUsers();
-            } catch (err) {
-                alert('Ошибка разбана');
-            }
-        }
-
-        // Инициализация
-        showSection('dashboard');
-    </script>
+<!-- ── Скрипты: порядок важен (классические скрипты, общая глобальная область) ── -->
+<script src="constants.js"></script>
+<script src="state.js"></script>
+<script src="map.js"></script>
+<script src="render.js"></script>
+<script src="economy.js"></script>
+<script src="market.js"></script>
+<script src="ai.js"></script>
+<script src="ui.js"></script>
+<script src="input.js"></script>
+<script src="main.js"></script>
 </body>
 </html>
