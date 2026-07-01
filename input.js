@@ -66,11 +66,6 @@ document.getElementById('btn-build').onclick=function(){
 };
 document.getElementById('btn-new').onclick=()=>newGame();
 
-const isMobileDevice=('ontouchstart'in window||navigator.maxTouchPoints>0)&&Math.min(window.innerWidth,window.innerHeight)<700;
-function checkRotate(){
-  const portrait=window.innerHeight>window.innerWidth;
-  document.getElementById('rotate-screen').classList.toggle('show-rotate',isMobileDevice&&portrait);
-}
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;if(offC)fitView();checkRotate();}
+function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;if(offC)fitView();}
 window.addEventListener('resize',resize);
 window.addEventListener('orientationchange',()=>setTimeout(resize,200));
