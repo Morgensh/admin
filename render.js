@@ -3,8 +3,10 @@
 function cityLabel(p){return p<100?'Деревня':p<400?'Посёлок':p<800?'Город':p<1500?'Большой город':'Мегаполис';}
 function gearRadius(pop){return GEAR_MIN_R+(GEAR_MAX_R-GEAR_MIN_R)*Math.sqrt(Math.min(1,pop/POP_MAX));}
 
-function clamp(){vx=Math.max(canvas.width*.1-MW*vs,Math.min(canvas.width*.9,vx));vy=Math.max(canvas.height*.1-MH*vs,Math.min(canvas.height*.9,vy));}
-function fitView(){vs=Math.max(canvas.width/MW,canvas.height/MH)*1.05;vx=(canvas.width-MW*vs)/2;vy=(canvas.height-MH*vs)/2;}
+// canvas.width/height теперь в физических пикселях (canvas.width=CSS-ширина*dpr), а вся камера (vx/vy/vs)
+// живёт в CSS-пикселях — поэтому здесь всегда делим на dpr, чтобы получить реальный размер вьюпорта
+function clamp(){const cw=canvas.width/dpr,ch=canvas.height/dpr;vx=Math.max(cw*.1-MW*vs,Math.min(cw*.9,vx));vy=Math.max(ch*.1-MH*vs,Math.min(ch*.9,vy));}
+function fitView(){const cw=canvas.width/dpr,ch=canvas.height/dpr;vs=Math.max(cw/MW,ch/MH)*1.05;vx=(cw-MW*vs)/2;vy=(ch-MH*vs)/2;}
 
 function drawGear(x,y,color,R){
   const teeth=Math.max(5,Math.round(R*.9)),ri=R*.62,rh=R*.26;
@@ -32,7 +34,9 @@ function drawDeposit(d){
 function draw(){
   ctx.fillStyle='#06080f';ctx.fillRect(0,0,canvas.width,canvas.height);
   if(!offC){requestAnimationFrame(draw);return;}
-  ctx.save();ctx.translate(vx,vy);ctx.scale(vs,vs);ctx.imageSmoothingEnabled=false;
+  // ctx.scale(dpr,dpr) первым — переводит все дальнейшие CSS-пиксельные координаты (vx/vy/vs)
+  // в физические пиксели canvas. Без этого на retina-экранах картинка растягивается и мылится.
+  ctx.save();ctx.scale(dpr,dpr);ctx.translate(vx,vy);ctx.scale(vs,vs);ctx.imageSmoothingEnabled=false;
   ctx.drawImage(offC,0,0);
   for(const co of countries){
     if(!co.alive||!co.capital)continue;
